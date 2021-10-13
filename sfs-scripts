@@ -1,0 +1,53 @@
+#!/bin/bash
+#$ -S /bin/bash
+#$ -cwd
+#$ -j y
+#$ -l virtual_free=10G
+#$ -l h_vmem=11G
+#$ -m n
+#$ -p 0
+##$ -pe smp 2
+##Anzahl der Bilder
+#$ -t 1-1365
+#$ -o /home/neesemann/dawnfc/out
+
+#psfile=$1
+#File mit allen Bildern
+#/home/neesemann/.../abc.cub
+# erstellen mit:
+# find /home/neesemann/.../ -name "*.cub" > /home/neesemann/dawnfc/listofimages.txt
+# wc -l  /home/neesemann/dawnfc/listofimages.txt
+# 1365
+
+#ANPASSEN
+psfile=/home/neesemann/dawnfc/listofimages.txt
+dtmpath=/home/neesemann/dawnfc/DTM
+dest=/home/neesemann/dawnfc/sfs
+
+
+source /share/apps/anaconda3/etc/profile.d/conda.sh
+conda activate asp
+
+if [ ! $?SGE_TASK_ID ] ; then
+  SGE_TASK_ID=1
+  echo $SGE_TASK_ID
+fi
+
+line=`sed -n ${SGE_TASK_ID}p $psfile`
+
+base=`basename $line  _lev2.cub`
+
+scratch=/scratch/neesemann/${base}
+
+mkdir -pv $scratch ${dest}
+pushd $scratch
+
+cp -pv ${dtmpath}/${base}_DTM.tif .
+cp -pv $line .
+
+time sfs -i ${base}_DTM.tif -n 100 -o ${dest}/${base}_SW-0.004_SfS.tif --reflectance-type 2 --smoothness-weight 0.004 --save-sparingly --model-shadows --initial-dem-constraint-weight 0 --threads 1 --model-coeffs '0.12 0.37 0.081 1.6 0.06' ${base}_lev2.cub
+
+mv -v ${dest}/${base}_SW-0.004_SfS.tif ${dest}/
+
+popd
+rm -rf $scratch
